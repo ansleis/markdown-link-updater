@@ -16,6 +16,10 @@ const mdLinkRegexGlobal = /(\[[^\]]*\]\()([^\)]+?)(#[^\s\/]+)?\)/gm;
 const mdLinkRegexInAngleBrackesGlobal =
   /(\[[^\]]*\]\(<)([^\)]+?)>(#[^\s\/]+)?\)/gm;
 const imgRegex = /(<img\s[^>]*?src\s*=\s*['\"])([^'\"]*?)['\"][^>]*?>/gm;
+const hugoShortcodeRegex = /{{< (?:xref |include |glosslink |include-inline )"(.*?)" >}}/;
+const hugoShortcodeRegexGlobal = /({{< (?:xref |include |glosslink |include-inline )")(.*?)(#[^\s\/]+)?" >}}/gm;
+//const hugoShortcodeRegex = /{{< (?:ref |xref |)"(.*?)" >}}/;
+//const hugoShortcodeRegexGlobal = /({{< (?:ref |xref )")(.*?)(#[^\s\/]+)?" >}}/gm;
 
 interface Options {
   /**
@@ -288,12 +292,44 @@ function* handleSaveEvent(
 
     lineNumber++;
   }
+  // lol
+  let lineNum = 0;
+  for (const line of contentAfter.split("\n")) {
+    const [match, link] = line.match(hugoShortcodeRegex) ?? [];
+
+    if (match) {
+      for (const { oldHeader, newHeader } of renamedHeadings) {
+        const oldHeaderAnchor = headingToAnchor(oldHeader);
+        const newHeaderAnchor = headingToAnchor(newHeader);
+
+        if (link === `#${oldHeaderAnchor}`) {
+          yield {
+            path: payload.path,
+            range: {
+              start: {
+                line: lineNum,
+                character: 0,
+              },
+              end: {
+                line: lineNum,
+                character: line.length,
+              },
+            },
+            newText: `[asdf](#${newHeaderAnchor})`,
+          };
+        }
+      }
+    }
+
+    lineNum++;
+  }
 }
 
 function* getAllLinks(fileContent: string | undefined) {
   yield* getMatchingLinks(mdLinkRegexInAngleBrackesGlobal, fileContent);
   yield* getMatchingLinks(mdLinkRegexGlobal, fileContent);
   yield* getMatchingLinks(imgRegex, fileContent);
+  yield* getMatchingLinks(hugoShortcodeRegexGlobal, fileContent);
 }
 
 function* getMatchingLinks(regex: RegExp, fileContent: string | undefined) {
